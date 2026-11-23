@@ -1,0 +1,32 @@
+REGISTRO DE ASISTENCIA POR QR
+
+Requisitos: Node.js 22 o posterior y una instancia de MongoDB local o Atlas.
+
+1. En PowerShell, desde la carpeta del proyecto, ejecuta npm.cmd install.
+2. Ejecuta Copy-Item .env.example .env. Si usas Atlas, edita MONGODB_URI
+   en .env con la cadena de conexión del clúster. Para MongoDB local,
+   los valores de ejemplo funcionan con la instancia en el puerto 27017.
+3. Ejecuta npm.cmd start y abre http://localhost:8000 en Chrome o Edge.
+4. Registra un alumno indicando su generación, por ejemplo 2026B. Puedes
+   tomar su asistencia desde el escáner o escribiendo su matrícula.
+
+MongoDB crea la base asistencia_qr y la colección alumnos al registrar
+el primer alumno. Cada documento guarda las asistencias del alumno.
+El servidor escucha en esta computadora y la cámara puede usar localhost.
+La hora de asistencia se toma del reloj de la computadora que ejecuta Node.
+
+Los registros de la versión anterior siguen en el navegador donde se
+crearon. Puedes exportar su historial a CSV desde la versión anterior.
+
+
+PUBLICACIÓN EN RENDER
+
+Crea un Web Service desde un repositorio de GitHub para este proyecto.
+Build Command: npm ci
+Start Command: npm start
+En Environment, configura MONGODB_URI, MONGODB_DB y APP_PASSWORD.
+APP_USER es opcional y su valor predeterminado es admin.
+La contraseña del sitio debe ser distinta de la contraseña de Atlas.
+Autoriza en Atlas las direcciones de salida del servicio de Render.
+Sube el código fuente, package-lock.json y las dos librerías QR de js/vendor.
+El archivo .env y node_modules se excluyen del repositorio.

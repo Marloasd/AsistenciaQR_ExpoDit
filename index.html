@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Registro de Asistencia por QR</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header>
+    <h1>Registro de Asistencia por QR</h1>
+    <nav>
+      <button data-view="alumnos" class="active">Alumnos</button>
+      <button data-view="qr">Códigos QR</button>
+      <button data-view="escaner">Escanear</button>
+      <button data-view="asistencias">Asistencias</button>
+    </nav>
+  </header>
+
+  <main>
+    <!-- Vista: Alumnos -->
+    <section id="view-alumnos" class="view active">
+      <h2>Registrar alumno</h2>
+      <form id="form-alumno" novalidate>
+        <input id="matricula" placeholder="Matrícula (ej. A1234)" maxlength="15">
+        <input id="nombre" placeholder="Nombre completo">
+        <input id="generacion" aria-label="Generación" placeholder="Generación (ej. 2026B)" maxlength="5">
+        <button type="submit">Registrar alumno</button>
+      </form>
+      <p id="msg-alumno" class="msg"></p>
+      <table>
+        <thead><tr><th>Matrícula</th><th>Nombre</th><th>Generación</th><th>Acciones</th></tr></thead>
+        <tbody id="tabla-alumnos"></tbody>
+      </table>
+    </section>
+
+    <!-- Vista: Códigos QR -->
+    <section id="view-qr" class="view">
+      <h2>Códigos QR de los alumnos</h2>
+      <p class="hint">Cada QR contiene la matrícula del alumno. Puedes mostrarlo en pantalla, imprimirlo o descargarlo.</p>
+      <div id="lista-qr" class="cards"></div>
+    </section>
+
+    <!-- Vista: Escáner -->
+    <section id="view-escaner" class="view">
+      <h2>Tomar asistencia</h2>
+      <div class="toolbar">
+        <button id="btn-iniciar">Iniciar cámara</button>
+        <button id="btn-detener" class="secondary">Detener cámara</button>
+      </div>
+      <div id="lector"></div>
+      <form id="form-manual" novalidate>
+        <input id="manual" placeholder="O escribe la matrícula manualmente">
+        <button type="submit" class="secondary">Registrar</button>
+      </form>
+      <p id="msg-escaner" class="msg"></p>
+    </section>
+
+    <!-- Vista: Asistencias -->
+    <section id="view-asistencias" class="view">
+      <h2>Lista de asistencias</h2>
+      <div class="toolbar">
+        <label>Fecha: <input type="date" id="filtro-fecha"></label>
+        <button id="btn-todas" class="secondary">Ver todas</button>
+        <button id="btn-csv">Exportar CSV</button>
+        <button id="btn-limpiar" class="danger">Borrar asistencias</button>
+      </div>
+      <table>
+        <thead><tr><th>Fecha</th><th>Hora</th><th>Matrícula</th><th>Nombre</th><th>Generación</th></tr></thead>
+        <tbody id="tabla-asistencias"></tbody>
+      </table>
+      <p id="msg-asistencias" class="msg" role="status"></p><p id="total-asistencias" class="hint"></p>
+    </section>
+  </main>
+
+  <script src="js/db.js"></script>
+  <script src="js/qr.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
