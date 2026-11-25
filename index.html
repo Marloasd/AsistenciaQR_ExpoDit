@@ -3,40 +3,71 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#1e3a8a">
   <title>Registro de Asistencia por QR</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231e3a8a'/%3E%3Cpath fill='none' stroke='%23fff' stroke-width='2.4' d='M6 12V6h6M20 6h6v6M26 20v6h-6M12 26H6v-6'/%3E%3Cpath fill='%23fff' d='M12 12h3v3h-3zM17 12h3v3h-3zM12 17h3v3h-3zM17 17h3v3h-3z'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
   <header>
-    <h1>Registro de Asistencia por QR</h1>
-    <nav>
-      <button data-view="alumnos" class="active">Alumnos</button>
-      <button data-view="qr">Códigos QR</button>
-      <button data-view="escaner">Escanear</button>
-      <button data-view="asistencias">Asistencias</button>
-    </nav>
+    <div class="barra">
+      <div class="marca">
+        <svg viewBox="0 0 32 32" width="30" height="30" aria-hidden="true"><rect width="32" height="32" rx="7" fill="#fff" fill-opacity=".16"/><path fill="none" stroke="#fff" stroke-width="2.4" d="M6 12V6h6M20 6h6v6M26 20v6h-6M12 26H6v-6"/><path fill="#fff" d="M12 12h3v3h-3zM17 12h3v3h-3zM12 17h3v3h-3zM17 17h3v3h-3z"/></svg>
+        <h1>Registro de Asistencia por QR</h1>
+      </div>
+      <nav aria-label="Secciones">
+        <button data-view="alumnos" class="active">Alumnos</button>
+        <button data-view="qr">Códigos QR</button>
+        <button data-view="escaner">Escanear</button>
+        <button data-view="asistencias">Asistencias</button>
+      </nav>
+    </div>
   </header>
 
   <main>
     <!-- Vista: Alumnos -->
     <section id="view-alumnos" class="view active">
+      <div class="stats">
+        <div class="stat"><span id="stat-alumnos">0</span><small>Alumnos registrados</small></div>
+        <div class="stat ok"><span id="stat-hoy">0</span><small>Presentes hoy</small></div>
+        <div class="stat warn"><span id="stat-faltan">0</span><small>Faltan hoy</small></div>
+      </div>
+
       <h2>Registrar alumno</h2>
       <form id="form-alumno" novalidate>
-        <input id="matricula" placeholder="Matrícula (ej. A1234)" maxlength="15">
-        <input id="nombre" placeholder="Nombre completo">
-        <input id="generacion" aria-label="Generación" placeholder="Generación (ej. 2026B)" maxlength="5">
+        <input id="matricula" placeholder="Matrícula (ej. A1234)" maxlength="15" autocomplete="off" autocapitalize="characters" aria-label="Matrícula">
+        <input id="nombre" placeholder="Nombre completo" maxlength="150" autocomplete="off" aria-label="Nombre completo">
+        <input id="generacion" aria-label="Generación" placeholder="Generación (ej. 2026B)" maxlength="5" autocomplete="off" autocapitalize="characters">
         <button type="submit">Registrar alumno</button>
       </form>
-      <p id="msg-alumno" class="msg"></p>
-      <table>
-        <thead><tr><th>Matrícula</th><th>Nombre</th><th>Generación</th><th>Acciones</th></tr></thead>
-        <tbody id="tabla-alumnos"></tbody>
-      </table>
+      <p id="msg-alumno" class="msg" role="status"></p>
+
+      <div class="toolbar">
+        <label class="boton secondary" for="archivo-csv">Importar alumnos (CSV)</label>
+        <input id="archivo-csv" type="file" accept=".csv,text/csv" hidden>
+        <span class="hint">Columnas: matrícula, nombre, generación.</span>
+      </div>
+
+      <div class="encabezado-tabla">
+        <h2>Lista de alumnos</h2>
+        <label class="check"><input id="solo-faltan" type="checkbox"> Solo los que faltan hoy</label>
+        <input id="buscar" type="search" placeholder="Buscar por nombre o matrícula" aria-label="Buscar alumno">
+      </div>
+      <div class="tabla-scroll">
+        <table>
+          <thead><tr><th>Matrícula</th><th>Nombre</th><th>Generación</th><th>Hoy</th><th>Acciones</th></tr></thead>
+          <tbody id="tabla-alumnos"></tbody>
+        </table>
+      </div>
+      <p id="vacio-alumnos" class="vacio" hidden>Aún no hay alumnos. Registra el primero con el formulario de arriba.</p>
     </section>
 
     <!-- Vista: Códigos QR -->
     <section id="view-qr" class="view">
-      <h2>Códigos QR de los alumnos</h2>
+      <div class="encabezado-tabla">
+        <h2>Códigos QR de los alumnos</h2>
+        <button id="btn-imprimir" class="secondary">Imprimir QR</button>
+      </div>
       <p class="hint">Cada QR contiene la matrícula del alumno. Puedes mostrarlo en pantalla, imprimirlo o descargarlo.</p>
       <div id="lista-qr" class="cards"></div>
     </section>
@@ -44,16 +75,25 @@
     <!-- Vista: Escáner -->
     <section id="view-escaner" class="view">
       <h2>Tomar asistencia</h2>
+      <p class="hint">Pulsa «Iniciar cámara» y acerca el QR del alumno al recuadro. Con buena luz se lee en menos de un segundo.</p>
       <div class="toolbar">
         <button id="btn-iniciar">Iniciar cámara</button>
-        <button id="btn-detener" class="secondary">Detener cámara</button>
+        <button id="btn-detener" class="secondary" disabled>Detener cámara</button>
+        <select id="sel-camara" aria-label="Cámara" hidden></select>
+        <button id="btn-linterna" class="secondary" hidden>Linterna</button>
+        <label class="boton secondary" for="archivo-qr">Leer desde foto</label>
+        <input id="archivo-qr" type="file" accept="image/*" hidden>
       </div>
-      <div id="lector"></div>
+      <div class="visor">
+        <div id="lector"></div>
+        <div id="resultado-escaneo" class="resultado" role="status" aria-live="polite" hidden></div>
+      </div>
+      <div id="lector-archivo" hidden></div>
       <form id="form-manual" novalidate>
-        <input id="manual" placeholder="O escribe la matrícula manualmente">
+        <input id="manual" placeholder="O escribe la matrícula manualmente" autocomplete="off" autocapitalize="characters" aria-label="Matrícula manual">
         <button type="submit" class="secondary">Registrar</button>
       </form>
-      <p id="msg-escaner" class="msg"></p>
+      <p id="msg-escaner" class="msg" role="status"></p>
     </section>
 
     <!-- Vista: Asistencias -->
@@ -61,17 +101,23 @@
       <h2>Lista de asistencias</h2>
       <div class="toolbar">
         <label>Fecha: <input type="date" id="filtro-fecha"></label>
+        <button id="btn-hoy" class="secondary">Hoy</button>
         <button id="btn-todas" class="secondary">Ver todas</button>
         <button id="btn-csv">Exportar CSV</button>
         <button id="btn-limpiar" class="danger">Borrar asistencias</button>
       </div>
-      <table>
-        <thead><tr><th>Fecha</th><th>Hora</th><th>Matrícula</th><th>Nombre</th><th>Generación</th></tr></thead>
-        <tbody id="tabla-asistencias"></tbody>
-      </table>
+      <div class="tabla-scroll">
+        <table>
+          <thead><tr><th>Fecha</th><th>Hora</th><th>Matrícula</th><th>Nombre</th><th>Generación</th></tr></thead>
+          <tbody id="tabla-asistencias"></tbody>
+        </table>
+      </div>
+      <p id="vacio-asistencias" class="vacio" hidden>No hay asistencias para este filtro.</p>
       <p id="msg-asistencias" class="msg" role="status"></p><p id="total-asistencias" class="hint"></p>
     </section>
   </main>
+
+  <div id="toast" role="status" aria-live="polite"></div>
 
   <script src="js/db.js"></script>
   <script src="js/qr.js"></script>

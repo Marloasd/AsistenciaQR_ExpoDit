@@ -9,9 +9,9 @@ const DB = {
         headers: datos === undefined ? undefined : { 'Content-Type': 'application/json' },
         body: datos === undefined ? undefined : JSON.stringify(datos)
       });
-      return await respuesta.json();
+      return { ...(await respuesta.json()), estado: respuesta.status };
     } catch {
-      return { ok: false, msg: 'No se pudo comunicar con el servidor de Asistencia QR.' };
+      return { ok: false, estado: 0, msg: 'No se pudo comunicar con el servidor de Asistencia QR.' };
     }
   },
 

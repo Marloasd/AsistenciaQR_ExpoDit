@@ -13,7 +13,16 @@ Requisitos: Node.js 22 o posterior y una instancia de MongoDB local o Atlas.
 MongoDB crea la base asistencia_qr y la colección alumnos al registrar
 el primer alumno. Cada documento guarda las asistencias del alumno.
 El servidor escucha en esta computadora y la cámara puede usar localhost.
-La hora de asistencia se toma del reloj de la computadora que ejecuta Node.
+La hora de asistencia usa la zona APP_TZ (America/Mexico_City por defecto), no el reloj del servidor.
+
+COMODIDADES
+- Importar alumnos: botón «Importar alumnos (CSV)» con columnas matrícula, nombre, generación (sin comas dentro del nombre).
+- «Marcar presente» en la lista, para quien olvidó su QR, y filtro «Solo los que faltan hoy».
+- Escáner: selector de cámara (se recuerda), linterna si el celular la tiene y «Leer desde foto» como plan B.
+- /healthz responde sin contraseña; úsala como Health Check Path en Render.
+
+PRUEBAS
+npm.cmd test ejecuta las pruebas del servidor con una base de datos simulada en memoria (no necesita MongoDB).
 
 Los registros de la versión anterior siguen en el navegador donde se
 crearon. Puedes exportar su historial a CSV desde la versión anterior.
@@ -25,7 +34,7 @@ Crea un Web Service desde un repositorio de GitHub para este proyecto.
 Build Command: npm ci
 Start Command: npm start
 En Environment, configura MONGODB_URI, MONGODB_DB y APP_PASSWORD.
-APP_USER es opcional y su valor predeterminado es admin.
+APP_USER es opcional y su valor predeterminado es admin. APP_TZ es opcional (America/Mexico_City).
 La contraseña del sitio debe ser distinta de la contraseña de Atlas.
 Autoriza en Atlas las direcciones de salida del servicio de Render.
 Sube el código fuente, package-lock.json y las dos librerías QR de js/vendor.

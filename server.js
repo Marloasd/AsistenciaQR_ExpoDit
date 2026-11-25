@@ -54,12 +54,22 @@ async function cuerpo(req) {
   }
 }
 
+// Render corre en UTC: sin zona horaria explícita, las asistencias después de las 18:00 (hora de Guadalajara) caían en el día siguiente.
+const zona = process.env.APP_TZ || 'America/Mexico_City';
+const formatoFecha = new Intl.DateTimeFormat('en-CA', { timeZone: zona, year: 'numeric', month: '2-digit', day: '2-digit' });
+const formatoHora = new Intl.DateTimeFormat('en-GB', { timeZone: zona, hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' });
+
 const normalizar = valor => typeof valor === 'string' ? valor.trim().toUpperCase() : '';
 const matriculaValida = /^[A-Z0-9]{4,15}$/;
 
 async function manejar(req, res) {
   const ruta = req.url.split('?')[0];
   const metodo = req.method;
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader('Permissions-Policy', 'camera=(self)');
+  // Render consulta esta ruta sin credenciales para saber si el servicio está vivo.
+  if (ruta === '/healthz' && metodo === 'GET') return json(res, 200, { msg: 'ok' });
   if (!accesoValido(req.headers.authorization)) {
     res.setHeader('WWW-Authenticate', 'Basic realm="Asistencia QR", charset="UTF-8"');
     return json(res, 401, { msg: 'Ingresa el usuario y la contraseña del sitio.' });
@@ -67,7 +77,9 @@ async function manejar(req, res) {
   if (metodo === 'GET' && archivos.has(ruta)) {
     const [archivo, tipo] = archivos.get(ruta);
     const datos = await readFile(path.join(__dirname, archivo));
-    res.writeHead(200, { 'Content-Type': tipo + '; charset=utf-8' });
+    // Las librerías de js/vendor no cambian: se pueden guardar un día. El resto se revalida siempre.
+    const cache = archivo.startsWith('js/vendor/') ? 'public, max-age=86400' : 'no-cache';
+    res.writeHead(200, { 'Content-Type': tipo + '; charset=utf-8', 'Cache-Control': cache });
     return res.end(datos);
   }
   if (metodo !== 'GET' && req.headers.origin && req.headers.origin !== (urlPublica || 'http://' + req.headers.host)) {
@@ -112,8 +124,8 @@ async function manejar(req, res) {
     const matricula = normalizar(texto);
     if (!matriculaValida.test(matricula)) return json(res, 400, { msg: 'Escribe o escanea una matrícula válida.' });
     const ahora = new Date();
-    const fecha = ahora.toLocaleDateString('en-CA');
-    const hora = ahora.toTimeString().slice(0, 8);
+    const fecha = formatoFecha.format(ahora);
+    const hora = formatoHora.format(ahora);
     const alumno = await alumnos.findOneAndUpdate(
       { _id: matricula, 'asistencias.fecha': { $ne: fecha } },
       { $push: { asistencias: { fecha, hora } } },
