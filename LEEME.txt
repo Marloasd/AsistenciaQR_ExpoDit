@@ -1,41 +1,82 @@
-REGISTRO DE ASISTENCIA POR QR
+ASISTENCIA QR — SISTEMA MAESTRO / ALUMNO
+
+Qué hace
+- Maestros con su propio usuario; cada uno ve solo sus materias.
+- Materias con horario, clases planeadas y alumnos inscritos.
+- Pase de lista por materia con QR (cámara, foto o matrícula). Estados: presente, retardo, falta y justificada.
+- Faltas permitidas = 20 % de las clases planeadas (configurable por materia). Tres retardos cuentan como una falta.
+- Semáforo por alumno: al corriente, en riesgo, en el límite y sin derecho.
+- Portal del alumno (matrícula + PIN): sus faltas, cuántas le quedan y su código QR.
+- Al cerrar la clase, quien no pasó lista recibe falta y se mandan avisos por WhatsApp (por n8n y Evolution API):
+  al padre o tutor por cada falta, y al alumno cuando le quedan 3 faltas o menos.
+- Reporte por materia (matriz de asistencia) con exportación a CSV.
 
 Requisitos: Node.js 22 o posterior y una instancia de MongoDB local o Atlas.
 
-1. En PowerShell, desde la carpeta del proyecto, ejecuta npm.cmd install.
-2. Ejecuta Copy-Item .env.example .env. Si usas Atlas, edita MONGODB_URI
-   en .env con la cadena de conexión del clúster. Para MongoDB local,
-   los valores de ejemplo funcionan con la instancia en el puerto 27017.
-3. Ejecuta npm.cmd start y abre http://localhost:8000 en Chrome o Edge.
-4. Registra un alumno indicando su generación, por ejemplo 2026B. Puedes
-   tomar su asistencia desde el escáner o escribiendo su matrícula.
+PUESTA EN MARCHA LOCAL
+1. En PowerShell, desde la carpeta del proyecto: npm.cmd install
+2. Copy-Item .env.example .env  y completa MONGODB_URI si usas Atlas.
+3. npm.cmd start  y abre http://localhost:8000
+   Sin APP_PASSWORD, en local el administrador es  admin / admin.
+4. Entra como administrador, ve a «Administración» y pulsa «Cargar datos de demostración»
+   (opcionalmente con tu WhatsApp, para recibir ahí todos los avisos). Crea 2 materias,
+   14 alumnos inventados y un historial con casos en verde, amarillo y rojo:
+     Maestro demo:  prof.demo / demo1234
+     Alumno demo:   D2024007 / PIN 1234
+   Para reiniciar la demostración basta con volver a pulsar el botón.
 
-MongoDB crea la base asistencia_qr y la colección alumnos al registrar
-el primer alumno. Cada documento guarda las asistencias del alumno.
-El servidor escucha en esta computadora y la cámara puede usar localhost.
-La hora de asistencia usa la zona APP_TZ (America/Mexico_City por defecto), no el reloj del servidor.
+USUARIOS
+- Administrador: APP_USER (admin) y APP_PASSWORD. Crea maestros en «Administración».
+- Maestro: usuario y contraseña (mínimo 8 caracteres) que crea el administrador.
+- Alumno: su matrícula y el PIN de 4 dígitos que se muestra UNA vez al registrarlo
+  (se puede regenerar desde la lista de alumnos o descargar al importar un CSV).
+- El QR de cada alumno contiene un código aleatorio propio, no la matrícula.
+  La matrícula también se acepta al escribirla a mano.
+- Intentos de acceso: tras 8 fallos desde la misma dirección se bloquea 15 minutos.
 
-COMODIDADES
-- Importar alumnos: botón «Importar alumnos (CSV)» con columnas matrícula, nombre, generación (sin comas dentro del nombre).
-- «Marcar presente» en la lista, para quien olvidó su QR, y filtro «Solo los que faltan hoy».
-- Escáner: selector de cámara (se recuerda), linterna si el celular la tiene y «Leer desde foto» como plan B.
-- /healthz responde sin contraseña; úsala como Health Check Path en Render.
+HORA
+La fecha y la hora usan la zona APP_TZ (America/Mexico_City por defecto), no el reloj del servidor
+(Render corre en UTC). El retardo se marca si el alumno llega entre 15 y 90 minutos después
+de la hora de inicio de la materia; fuera de esa ventana se toma como presente.
 
-PRUEBAS
-npm.cmd test ejecuta las pruebas del servidor con una base de datos simulada en memoria (no necesita MongoDB).
-
-Los registros de la versión anterior siguen en el navegador donde se
-crearon. Puedes exportar su historial a CSV desde la versión anterior.
-
+AVISOS POR WHATSAPP (n8n + Evolution API)
+La app no llama a n8n: guarda los avisos en una bandeja («Avisos») y n8n los recoge, así no se pierde
+ninguno aunque el túnel o WhatsApp fallen un rato (se reintenta 3 veces).
+1. En Render crea la variable N8N_TOKEN con una cadena larga y aleatoria.
+2. En n8n importa n8n/avisos-whatsapp.json (Workflows -> Import from file).
+3. Abre el nodo «Configuración» y escribe: la URL de la app, el mismo token, y la URL, instancia y
+   apikey de Evolution API. Activa el flujo.
+4. Prueba desde «Avisos» -> «Enviar mensaje de prueba». En menos de un minuto debe llegar.
+El flujo incluye un disparador opcional cada 10 minutos que mantiene despierto el plan gratuito de Render.
+Por cuidado con WhatsApp, los mensajes salen de uno en uno con 3 segundos de pausa.
+Los teléfonos de padres y alumnos son datos personales: regístralos solo con su consentimiento.
 
 PUBLICACIÓN EN RENDER
-
 Crea un Web Service desde un repositorio de GitHub para este proyecto.
 Build Command: npm ci
 Start Command: npm start
-En Environment, configura MONGODB_URI, MONGODB_DB y APP_PASSWORD.
-APP_USER es opcional y su valor predeterminado es admin. APP_TZ es opcional (America/Mexico_City).
+Health Check Path: /healthz (responde sin contraseña)
+En Environment configura: MONGODB_URI, MONGODB_DB, APP_PASSWORD y N8N_TOKEN.
+Opcionales: APP_USER (admin), APP_TZ (America/Mexico_City) y SESSION_SECRET (si se omite, se deriva de APP_PASSWORD;
+al cambiar APP_PASSWORD se cierran todas las sesiones).
 La contraseña del sitio debe ser distinta de la contraseña de Atlas.
 Autoriza en Atlas las direcciones de salida del servicio de Render.
 Sube el código fuente, package-lock.json y las dos librerías QR de js/vendor.
 El archivo .env y node_modules se excluyen del repositorio.
+
+DATOS ANTERIORES
+Los alumnos registrados con la versión anterior siguen existiendo (reciben un código QR nuevo al abrir la lista),
+pero no tienen PIN: genera uno desde la lista de alumnos. Las asistencias antiguas (sin materia) no se muestran.
+
+PRUEBAS
+npm.cmd test ejecuta las pruebas con una base de datos simulada en memoria (no necesita MongoDB):
+reglas de faltas, login y permisos, asistencia por QR, cierre de clase, avisos y demostración.
+
+ESTRUCTURA
+server.js            servidor HTTP y API
+lib/reglas.js        reglas de faltas, retardos y textos de aviso
+lib/seguridad.js     contraseñas (scrypt), sesiones firmadas, códigos aleatorios
+lib/demo.js          datos de demostración
+js/maestro.js        vistas de maestro y administrador
+js/alumno.js         portal del alumno
+n8n/                 flujo de WhatsApp listo para importar

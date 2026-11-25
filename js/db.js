@@ -1,24 +1,27 @@
-/* Cliente de la API de asistencia */
+/* Cliente de la API. Cada llamada devuelve { ok, estado, msg, ...datos } y nunca lanza. */
 const DB = {
+  alExpirar: null, // función que muestra la pantalla de acceso cuando el servidor responde 401
+
   hoy() { return new Date().toLocaleDateString('en-CA'); },
 
-  async solicitud(ruta, method = 'GET', datos) {
+  async solicitud(ruta, metodo = 'GET', datos) {
     try {
       const respuesta = await fetch('/api/' + ruta, {
-        method,
+        method: metodo,
         headers: datos === undefined ? undefined : { 'Content-Type': 'application/json' },
         body: datos === undefined ? undefined : JSON.stringify(datos)
       });
-      return { ...(await respuesta.json()), estado: respuesta.status };
+      const cuerpo = { ...(await respuesta.json()), estado: respuesta.status };
+      if (respuesta.status === 401 && ruta !== 'login' && this.alExpirar) this.alExpirar();
+      return cuerpo;
     } catch {
       return { ok: false, estado: 0, msg: 'No se pudo comunicar con el servidor de Asistencia QR.' };
     }
   },
 
-  alumnos() { return this.solicitud('alumnos'); },
-  registros() { return this.solicitud('asistencias'); },
-  agregarAlumno(alumno) { return this.solicitud('alumnos', 'POST', alumno); },
-  eliminarAlumno(matricula) { return this.solicitud('alumnos/' + encodeURIComponent(matricula), 'DELETE'); },
-  registrarAsistencia(texto) { return this.solicitud('asistencias', 'POST', { texto }); },
-  borrarAsistencias() { return this.solicitud('asistencias', 'DELETE'); }
+  get(ruta) { return this.solicitud(ruta); },
+  post(ruta, datos = {}) { return this.solicitud(ruta, 'POST', datos); },
+  put(ruta, datos) { return this.solicitud(ruta, 'PUT', datos); },
+  patch(ruta, datos) { return this.solicitud(ruta, 'PATCH', datos); },
+  borrar(ruta) { return this.solicitud(ruta, 'DELETE'); }
 };

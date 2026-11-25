@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#1e3a8a">
-  <title>Registro de Asistencia por QR</title>
+  <title>Asistencia QR · Maestro y Alumno</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231e3a8a'/%3E%3Cpath fill='none' stroke='%23fff' stroke-width='2.4' d='M6 12V6h6M20 6h6v6M26 20v6h-6M12 26H6v-6'/%3E%3Cpath fill='%23fff' d='M12 12h3v3h-3zM17 12h3v3h-3zM12 17h3v3h-3zM17 17h3v3h-3z'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="css/style.css">
 </head>
@@ -13,69 +13,45 @@
     <div class="barra">
       <div class="marca">
         <svg viewBox="0 0 32 32" width="30" height="30" aria-hidden="true"><rect width="32" height="32" rx="7" fill="#fff" fill-opacity=".16"/><path fill="none" stroke="#fff" stroke-width="2.4" d="M6 12V6h6M20 6h6v6M26 20v6h-6M12 26H6v-6"/><path fill="#fff" d="M12 12h3v3h-3zM17 12h3v3h-3zM12 17h3v3h-3zM17 17h3v3h-3z"/></svg>
-        <h1>Registro de Asistencia por QR</h1>
+        <h1>Asistencia QR</h1>
+        <div id="usuario-actual" class="usuario" hidden>
+          <span id="usuario-nombre"></span>
+          <button id="btn-salir" class="secundario-claro">Salir</button>
+        </div>
       </div>
-      <nav aria-label="Secciones">
-        <button data-view="alumnos" class="active">Alumnos</button>
-        <button data-view="qr">Códigos QR</button>
-        <button data-view="escaner">Escanear</button>
-        <button data-view="asistencias">Asistencias</button>
-      </nav>
+      <nav id="menu" aria-label="Secciones" hidden></nav>
     </div>
   </header>
 
   <main>
-    <!-- Vista: Alumnos -->
-    <section id="view-alumnos" class="view active">
-      <div class="stats">
-        <div class="stat"><span id="stat-alumnos">0</span><small>Alumnos registrados</small></div>
-        <div class="stat ok"><span id="stat-hoy">0</span><small>Presentes hoy</small></div>
-        <div class="stat warn"><span id="stat-faltan">0</span><small>Faltan hoy</small></div>
-      </div>
-
-      <h2>Registrar alumno</h2>
-      <form id="form-alumno" novalidate>
-        <input id="matricula" placeholder="Matrícula (ej. A1234)" maxlength="15" autocomplete="off" autocapitalize="characters" aria-label="Matrícula">
-        <input id="nombre" placeholder="Nombre completo" maxlength="150" autocomplete="off" aria-label="Nombre completo">
-        <input id="generacion" aria-label="Generación" placeholder="Generación (ej. 2026B)" maxlength="5" autocomplete="off" autocapitalize="characters">
-        <button type="submit">Registrar alumno</button>
+    <!-- Acceso -->
+    <section id="pantalla-login" class="view active login" hidden>
+      <h2>Iniciar sesión</h2>
+      <p class="hint">Maestros y administrador: usuario y contraseña. Alumnos: matrícula y PIN.</p>
+      <form id="form-login" novalidate>
+        <input id="login-usuario" placeholder="Usuario o matrícula" autocomplete="username" autocapitalize="off" aria-label="Usuario o matrícula">
+        <input id="login-clave" type="password" placeholder="Contraseña o PIN" autocomplete="current-password" aria-label="Contraseña o PIN">
+        <button type="submit">Entrar</button>
       </form>
-      <p id="msg-alumno" class="msg" role="status"></p>
-
-      <div class="toolbar">
-        <label class="boton secondary" for="archivo-csv">Importar alumnos (CSV)</label>
-        <input id="archivo-csv" type="file" accept=".csv,text/csv" hidden>
-        <span class="hint">Columnas: matrícula, nombre, generación.</span>
-      </div>
-
-      <div class="encabezado-tabla">
-        <h2>Lista de alumnos</h2>
-        <label class="check"><input id="solo-faltan" type="checkbox"> Solo los que faltan hoy</label>
-        <input id="buscar" type="search" placeholder="Buscar por nombre o matrícula" aria-label="Buscar alumno">
-      </div>
-      <div class="tabla-scroll">
-        <table>
-          <thead><tr><th>Matrícula</th><th>Nombre</th><th>Generación</th><th>Hoy</th><th>Acciones</th></tr></thead>
-          <tbody id="tabla-alumnos"></tbody>
-        </table>
-      </div>
-      <p id="vacio-alumnos" class="vacio" hidden>Aún no hay alumnos. Registra el primero con el formulario de arriba.</p>
+      <p id="msg-login" class="msg" role="status"></p>
     </section>
 
-    <!-- Vista: Códigos QR -->
-    <section id="view-qr" class="view">
-      <div class="encabezado-tabla">
-        <h2>Códigos QR de los alumnos</h2>
-        <button id="btn-imprimir" class="secondary">Imprimir QR</button>
-      </div>
-      <p class="hint">Cada QR contiene la matrícula del alumno. Puedes mostrarlo en pantalla, imprimirlo o descargarlo.</p>
-      <div id="lista-qr" class="cards"></div>
+    <!-- Panel del maestro -->
+    <section id="view-panel" class="view">
+      <div class="stats" id="panel-stats"></div>
+      <h2>Mis materias</h2>
+      <div id="panel-materias" class="materias"></div>
+      <p id="vacio-panel" class="vacio" hidden></p>
     </section>
 
-    <!-- Vista: Escáner -->
-    <section id="view-escaner" class="view">
+    <!-- Tomar asistencia -->
+    <section id="view-clase" class="view">
       <h2>Tomar asistencia</h2>
-      <p class="hint">Pulsa «Iniciar cámara» y acerca el QR del alumno al recuadro. Con buena luz se lee en menos de un segundo.</p>
+      <div class="toolbar">
+        <label>Materia: <select id="clase-materia" aria-label="Materia"></select></label>
+        <span id="clase-info" class="hint"></span>
+      </div>
+      <p class="hint">Pulsa «Iniciar cámara» y muestra el QR del alumno. Al terminar, cierra la clase: los que no pasaron lista reciben falta y se avisa por WhatsApp.</p>
       <div class="toolbar">
         <button id="btn-iniciar">Iniciar cámara</button>
         <button id="btn-detener" class="secondary" disabled>Detener cámara</button>
@@ -90,30 +66,158 @@
       </div>
       <div id="lector-archivo" hidden></div>
       <form id="form-manual" novalidate>
-        <input id="manual" placeholder="O escribe la matrícula manualmente" autocomplete="off" autocapitalize="characters" aria-label="Matrícula manual">
+        <input id="manual" placeholder="O escribe la matrícula" autocomplete="off" autocapitalize="characters" aria-label="Matrícula manual">
         <button type="submit" class="secondary">Registrar</button>
       </form>
       <p id="msg-escaner" class="msg" role="status"></p>
+
+      <div class="encabezado-tabla">
+        <h2>Lista de hoy</h2>
+        <button id="btn-cerrar-clase" class="danger">Cerrar clase</button>
+      </div>
+      <div id="clase-resumen" class="chips"></div>
+      <div class="tabla-scroll"><table><thead><tr><th>Alumno</th><th>Estado</th><th>Faltas</th><th>Cambiar a</th></tr></thead><tbody id="tabla-clase"></tbody></table></div>
+      <p id="vacio-clase" class="vacio" hidden>Esta materia aún no tiene alumnos inscritos.</p>
     </section>
 
-    <!-- Vista: Asistencias -->
-    <section id="view-asistencias" class="view">
-      <h2>Lista de asistencias</h2>
+    <!-- Materias -->
+    <section id="view-materias" class="view">
+      <h2 id="titulo-form-materia">Nueva materia</h2>
+      <form id="form-materia" novalidate>
+        <input id="mat-clave" placeholder="Clave (ej. PW-A)" maxlength="15" autocapitalize="characters" aria-label="Clave">
+        <input id="mat-nombre" placeholder="Nombre de la materia" maxlength="80" aria-label="Nombre">
+        <input id="mat-grupo" placeholder="Grupo (ej. 5A)" maxlength="20" aria-label="Grupo">
+        <label class="campo">Hora de inicio <input id="mat-hora" type="time"></label>
+        <label class="campo">Clases planeadas <input id="mat-clases" type="number" min="1" max="200" value="40"></label>
+        <label class="campo">% de faltas permitido <input id="mat-porcentaje" type="number" min="0" max="50" value="20"></label>
+        <label class="campo" id="campo-maestro" hidden>Maestro <select id="mat-maestro"></select></label>
+        <button type="submit" id="btn-guardar-materia">Crear materia</button>
+        <button type="button" id="btn-cancelar-materia" class="secondary" hidden>Cancelar edición</button>
+      </form>
+      <p id="msg-materia" class="msg" role="status"></p>
+      <div class="tabla-scroll"><table><thead><tr><th>Clave</th><th>Materia</th><th>Grupo</th><th>Faltas permitidas</th><th>Inscritos</th><th>Acciones</th></tr></thead><tbody id="tabla-materias"></tbody></table></div>
+      <p id="vacio-materias" class="vacio" hidden>Aún no hay materias. Crea la primera con el formulario de arriba.</p>
+
+      <div id="panel-inscritos" hidden>
+        <div class="encabezado-tabla"><h2 id="titulo-inscritos">Alumnos inscritos</h2><button id="btn-cerrar-inscritos" class="secondary">Cerrar</button></div>
+        <div class="dos-columnas">
+          <div>
+            <h3>Inscritos</h3>
+            <ul id="lista-inscritos" class="lista"></ul>
+          </div>
+          <div>
+            <h3>Agregar alumnos</h3>
+            <input id="buscar-inscribir" type="search" placeholder="Buscar alumno" aria-label="Buscar alumno para inscribir">
+            <ul id="lista-disponibles" class="lista lista-check"></ul>
+            <button id="btn-inscribir">Inscribir seleccionados</button>
+            <p id="msg-inscritos" class="msg" role="status"></p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Alumnos -->
+    <section id="view-alumnos" class="view">
+      <h2>Registrar alumno</h2>
+      <form id="form-alumno" novalidate>
+        <input id="matricula" placeholder="Matrícula (ej. A1234)" maxlength="15" autocomplete="off" autocapitalize="characters" aria-label="Matrícula">
+        <input id="nombre" placeholder="Nombre completo" maxlength="150" autocomplete="off" aria-label="Nombre completo">
+        <input id="generacion" placeholder="Generación (ej. 2026B)" maxlength="5" autocomplete="off" autocapitalize="characters" aria-label="Generación">
+        <input id="tutor-nombre" placeholder="Nombre del padre o tutor" maxlength="100" autocomplete="off" aria-label="Nombre del tutor">
+        <input id="tutor-tel" type="tel" placeholder="WhatsApp del tutor (10 dígitos)" autocomplete="off" aria-label="WhatsApp del tutor">
+        <input id="alumno-tel" type="tel" placeholder="WhatsApp del alumno (opcional)" autocomplete="off" aria-label="WhatsApp del alumno">
+        <button type="submit">Registrar alumno</button>
+      </form>
+      <p id="msg-alumno" class="msg" role="status"></p>
       <div class="toolbar">
-        <label>Fecha: <input type="date" id="filtro-fecha"></label>
-        <button id="btn-hoy" class="secondary">Hoy</button>
-        <button id="btn-todas" class="secondary">Ver todas</button>
+        <label class="boton secondary" for="archivo-csv">Importar alumnos (CSV)</label>
+        <input id="archivo-csv" type="file" accept=".csv,text/csv" hidden>
+        <span class="hint">Columnas: matrícula, nombre, generación, tutor, WhatsApp tutor, WhatsApp alumno.</span>
+      </div>
+
+      <div class="encabezado-tabla">
+        <h2>Lista de alumnos</h2>
+        <input id="buscar" type="search" placeholder="Buscar por nombre o matrícula" aria-label="Buscar alumno">
+      </div>
+      <div class="tabla-scroll"><table><thead><tr><th>Matrícula</th><th>Nombre</th><th>Gen.</th><th>Tutor</th><th>Acciones</th></tr></thead><tbody id="tabla-alumnos"></tbody></table></div>
+      <p id="vacio-alumnos" class="vacio" hidden></p>
+    </section>
+
+    <!-- Códigos QR -->
+    <section id="view-qr" class="view">
+      <div class="encabezado-tabla">
+        <h2>Códigos QR de los alumnos</h2>
+        <button id="btn-imprimir" class="secondary">Imprimir QR</button>
+      </div>
+      <p class="hint">Cada alumno tiene un código propio, difícil de adivinar. Toca un QR para ampliarlo.</p>
+      <div id="lista-qr" class="cards"></div>
+    </section>
+
+    <!-- Reportes -->
+    <section id="view-reportes" class="view">
+      <h2>Reporte de asistencia</h2>
+      <div class="toolbar">
+        <label>Materia: <select id="reporte-materia" aria-label="Materia del reporte"></select></label>
         <button id="btn-csv">Exportar CSV</button>
-        <button id="btn-limpiar" class="danger">Borrar asistencias</button>
       </div>
-      <div class="tabla-scroll">
-        <table>
-          <thead><tr><th>Fecha</th><th>Hora</th><th>Matrícula</th><th>Nombre</th><th>Generación</th></tr></thead>
-          <tbody id="tabla-asistencias"></tbody>
-        </table>
+      <div id="reporte-resumen" class="chips"></div>
+      <div class="tabla-scroll"><table class="matriz"><thead id="reporte-cabecera"></thead><tbody id="reporte-cuerpo"></tbody></table></div>
+      <p id="vacio-reporte" class="vacio" hidden></p>
+      <p class="hint leyenda">✓ presente · R retardo · F falta · J justificada · · sin registro. Tres retardos cuentan como una falta.</p>
+    </section>
+
+    <!-- Avisos de WhatsApp -->
+    <section id="view-avisos" class="view">
+      <div class="encabezado-tabla"><h2>Avisos por WhatsApp</h2><button id="btn-recargar-avisos" class="secondary">Actualizar</button></div>
+      <p class="hint">Al cerrar una clase se avisa al tutor de cada falta, y al alumno cuando le quedan 3 faltas o menos. n8n recoge los avisos pendientes cada minuto y los envía.</p>
+      <form id="form-prueba" novalidate>
+        <input id="prueba-tel" type="tel" placeholder="Enviar prueba a este número (10 dígitos)" aria-label="Teléfono de prueba">
+        <button type="submit" class="secondary">Enviar mensaje de prueba</button>
+      </form>
+      <p id="msg-avisos" class="msg" role="status"></p>
+      <div class="tabla-scroll"><table><thead><tr><th>Fecha</th><th>Para</th><th>Mensaje</th><th>Estado</th></tr></thead><tbody id="tabla-avisos"></tbody></table></div>
+      <p id="vacio-avisos" class="vacio" hidden>Todavía no hay avisos. Aparecerán al cerrar una clase con faltas.</p>
+    </section>
+
+    <!-- Administración -->
+    <section id="view-admin" class="view">
+      <h2>Maestros</h2>
+      <form id="form-maestro" novalidate>
+        <input id="maestro-usuario" placeholder="Usuario (ej. maria.soto)" autocapitalize="off" aria-label="Usuario del maestro">
+        <input id="maestro-nombre" placeholder="Nombre completo" aria-label="Nombre del maestro">
+        <input id="maestro-clave" type="password" placeholder="Contraseña (mín. 8)" autocomplete="new-password" aria-label="Contraseña del maestro">
+        <button type="submit">Crear maestro</button>
+      </form>
+      <p id="msg-maestro" class="msg" role="status"></p>
+      <div class="tabla-scroll"><table><thead><tr><th>Usuario</th><th>Nombre</th><th>Acciones</th></tr></thead><tbody id="tabla-maestros"></tbody></table></div>
+      <p id="vacio-maestros" class="vacio" hidden>Solo existe el administrador. Crea un maestro con el formulario.</p>
+
+      <h2 class="separado">Datos de demostración</h2>
+      <p class="hint">Crea 2 materias, 14 alumnos inventados y un historial de faltas con casos en verde, amarillo y rojo. Si escribes un número, todos los avisos de WhatsApp (de tutores y alumnos) llegarán a ese teléfono. Volver a pulsar el botón reinicia la demostración.</p>
+      <form id="form-demo" novalidate>
+        <input id="demo-tel" type="tel" placeholder="Tu WhatsApp para recibir los avisos (10 dígitos)" aria-label="Teléfono para la demostración">
+        <button type="submit">Cargar datos de demostración</button>
+      </form>
+      <p id="msg-demo" class="msg" role="status"></p>
+    </section>
+
+    <!-- Portal del alumno -->
+    <section id="view-resumen" class="view">
+      <h2 id="saludo-alumno">Mis materias</h2>
+      <p class="hint">Aquí ves cuántas faltas llevas y cuántas te quedan en cada materia. El límite es el 20 % de las clases.</p>
+      <div id="mis-materias" class="materias"></div>
+      <p id="vacio-mis-materias" class="vacio" hidden>Todavía no estás inscrito en ninguna materia.</p>
+    </section>
+
+    <section id="view-miqr" class="view">
+      <h2>Mi código QR</h2>
+      <p class="hint">Muéstralo en la puerta del salón. Sube el brillo de la pantalla y acércalo a la cámara del maestro.</p>
+      <div class="mi-qr">
+        <div id="mi-qr-img"></div>
+        <strong id="mi-qr-nombre"></strong>
+        <span id="mi-qr-datos"></span>
+        <div class="toolbar centrado"><button id="btn-mi-qr-ampliar">Ampliar</button><button id="btn-mi-qr-descargar" class="secondary">Descargar PNG</button></div>
       </div>
-      <p id="vacio-asistencias" class="vacio" hidden>No hay asistencias para este filtro.</p>
-      <p id="msg-asistencias" class="msg" role="status"></p><p id="total-asistencias" class="hint"></p>
     </section>
   </main>
 
@@ -125,10 +229,33 @@
     <button id="visor-qr-cerrar" class="secondary">Cerrar</button>
   </dialog>
 
+  <dialog id="dlg-alumno" aria-label="Editar alumno">
+    <h3>Editar alumno</h3>
+    <form id="form-editar-alumno" novalidate>
+      <input id="ed-matricula" disabled aria-label="Matrícula">
+      <input id="ed-nombre" placeholder="Nombre completo" maxlength="150" aria-label="Nombre">
+      <input id="ed-generacion" placeholder="Generación" maxlength="5" autocapitalize="characters" aria-label="Generación">
+      <input id="ed-tutor-nombre" placeholder="Nombre del tutor" maxlength="100" aria-label="Nombre del tutor">
+      <input id="ed-tutor-tel" type="tel" placeholder="WhatsApp del tutor (10 dígitos)" aria-label="WhatsApp del tutor">
+      <input id="ed-alumno-tel" type="tel" placeholder="WhatsApp del alumno" aria-label="WhatsApp del alumno">
+      <p id="msg-editar" class="msg" role="status"></p>
+      <div class="toolbar"><button type="submit">Guardar</button><button type="button" id="ed-cancelar" class="secondary">Cancelar</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="dlg-aviso" aria-label="Aviso">
+    <h3 id="dlg-aviso-titulo"></h3>
+    <div id="dlg-aviso-cuerpo"></div>
+    <button id="dlg-aviso-cerrar" class="secondary">Entendido</button>
+  </dialog>
+
   <div id="toast" role="status" aria-live="polite"></div>
 
   <script src="js/db.js"></script>
+  <script src="js/ui.js"></script>
   <script src="js/qr.js"></script>
+  <script src="js/maestro.js"></script>
+  <script src="js/alumno.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

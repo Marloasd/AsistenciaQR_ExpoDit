@@ -1,0 +1,120 @@
+{
+  "name": "Asistencia QR - Avisos de WhatsApp",
+  "nodes": [
+    {
+      "id": "a1000000-0000-4000-8000-000000000001",
+      "name": "Cada minuto",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0],
+      "parameters": { "rule": { "interval": [{ "field": "minutes", "minutesInterval": 1 }] } }
+    },
+    {
+      "id": "a1000000-0000-4000-8000-000000000002",
+      "name": "Configuración",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [220, 0],
+      "notes": "EDITA ESTOS VALORES: appUrl y token (el mismo N8N_TOKEN que está en Render), y la URL, instancia y apikey de Evolution API.",
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            { "id": "c1", "name": "appUrl", "type": "string", "value": "https://asistenciaqr-expodit.onrender.com" },
+            { "id": "c2", "name": "token", "type": "string", "value": "PEGA_AQUI_EL_N8N_TOKEN" },
+            { "id": "c3", "name": "evolutionUrl", "type": "string", "value": "http://192.168.0.62:8081" },
+            { "id": "c4", "name": "instancia", "type": "string", "value": "asistente_personal" },
+            { "id": "c5", "name": "apikey", "type": "string", "value": "PEGA_AQUI_LA_APIKEY_DE_EVOLUTION" }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "a1000000-0000-4000-8000-000000000003",
+      "name": "Pedir avisos pendientes",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 0],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.appUrl }}/api/avisos/pendientes",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "=Bearer {{ $json.token }}" }] },
+        "options": { "timeout": 60000 }
+      }
+    },
+    {
+      "id": "a1000000-0000-4000-8000-000000000004",
+      "name": "Un aviso por elemento",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [660, 0],
+      "parameters": { "fieldToSplitOut": "datos", "options": {} }
+    },
+    {
+      "id": "a1000000-0000-4000-8000-000000000005",
+      "name": "Enviar WhatsApp (Evolution)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, 0],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Configuración').item.json.evolutionUrl }}/message/sendText/{{ $('Configuración').item.json.instancia }}",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "apikey", "value": "={{ $('Configuración').item.json.apikey }}" }] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ number: $json.telefono, text: $json.texto }) }}",
+        "options": { "response": { "response": { "fullResponse": true, "neverError": true } }, "batching": { "batch": { "batchSize": 1, "batchInterval": 3000 } }, "timeout": 30000 }
+      }
+    },
+    {
+      "id": "a1000000-0000-4000-8000-000000000006",
+      "name": "Confirmar a la app",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1100, 0],
+      "notes": "Si Evolution respondió 2xx el aviso queda «Enviado»; si no, se reintenta (3 intentos) y luego queda en «Error».",
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Configuración').item.json.appUrl }}/api/avisos/{{ encodeURIComponent($('Un aviso por elemento').item.json.id) }}/resultado",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "=Bearer {{ $('Configuración').item.json.token }}" }] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ ok: $json.statusCode >= 200 && $json.statusCode < 300, detalle: 'Evolution HTTP ' + $json.statusCode + ' ' + JSON.stringify($json.body || '').slice(0, 150) }) }}",
+        "options": { "timeout": 30000 }
+      }
+    },
+    {
+      "id": "a1000000-0000-4000-8000-000000000007",
+      "name": "Cada 10 minutos",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 260],
+      "notes": "Opcional: mantiene despierto el servicio gratuito de Render (se duerme tras 15 min sin visitas).",
+      "parameters": { "rule": { "interval": [{ "field": "minutes", "minutesInterval": 10 }] } }
+    },
+    {
+      "id": "a1000000-0000-4000-8000-000000000008",
+      "name": "Mantener despierta la app",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [220, 260],
+      "parameters": {
+        "method": "GET",
+        "url": "https://asistenciaqr-expodit.onrender.com/healthz",
+        "options": { "timeout": 60000 }
+      }
+    }
+  ],
+  "connections": {
+    "Cada minuto": { "main": [[{ "node": "Configuración", "type": "main", "index": 0 }]] },
+    "Configuración": { "main": [[{ "node": "Pedir avisos pendientes", "type": "main", "index": 0 }]] },
+    "Pedir avisos pendientes": { "main": [[{ "node": "Un aviso por elemento", "type": "main", "index": 0 }]] },
+    "Un aviso por elemento": { "main": [[{ "node": "Enviar WhatsApp (Evolution)", "type": "main", "index": 0 }]] },
+    "Enviar WhatsApp (Evolution)": { "main": [[{ "node": "Confirmar a la app", "type": "main", "index": 0 }]] },
+    "Cada 10 minutos": { "main": [[{ "node": "Mantener despierta la app", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" }
+}
