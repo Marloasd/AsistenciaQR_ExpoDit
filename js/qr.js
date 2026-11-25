@@ -29,24 +29,36 @@ const QR = {
     return this._libs;
   },
 
-  async dibujar(contenedor, texto, tam = 180) {
+  /* Dibuja el QR con fondo blanco y zona de silencio incluida (12 % por lado): sin ese margen, muchos lectores no lo detectan
+     (comprobado con OpenCV) y depende del color de lo que haya alrededor. El canvas resultante mide tam + 2·margen. */
+  async dibujar(contenedor, texto, tam = 240) {
     await this.cargar();
+    const temporal = document.createElement('div');
+    new QRCode(temporal, { text: texto, width: tam, height: tam, correctLevel: QRCode.CorrectLevel.M });
+    const origen = temporal.querySelector('canvas');
+    const margen = Math.round(tam * 0.12);
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = tam + 2 * margen;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(origen, margen, margen);
     contenedor.innerHTML = '';
-    new QRCode(contenedor, { text: texto, width: tam, height: tam, correctLevel: QRCode.CorrectLevel.M });
+    contenedor.appendChild(canvas);
   },
 
-  /* El PNG descargado lleva un margen blanco (zona de silencio) y tamaño grande: así se lee bien impreso o desde otra pantalla. */
+  /* El PNG descargado es grande (600 px) y ya trae el margen blanco: se lee bien impreso o desde otra pantalla. */
   descargar(contenedor, nombre) {
     const canvas = contenedor.querySelector('canvas');
     if (!canvas) return;
-    const lado = 600, margen = 60;
+    const lado = 600;
     const salida = document.createElement('canvas');
     salida.width = salida.height = lado;
     const ctx = salida.getContext('2d');
     ctx.fillStyle = '#fff';
     ctx.fillRect(0, 0, lado, lado);
     ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(canvas, margen, margen, lado - 2 * margen, lado - 2 * margen);
+    ctx.drawImage(canvas, 0, 0, lado, lado);
     const a = document.createElement('a');
     a.href = salida.toDataURL('image/png');
     a.download = 'QR_' + nombre + '.png';

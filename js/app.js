@@ -71,6 +71,7 @@ function pintarAlumnos() {
       }
     }];
     // Para quien olvidó su QR: se marca presente sin escanear.
+    acciones.unshift({ texto: 'Ver QR', clase: 'primario', fn: () => ampliar(a) });
     if (!presente) acciones.unshift({
       texto: 'Marcar presente', clase: 'secondary',
       fn: async () => {
@@ -136,6 +137,19 @@ $('#form-alumno').onsubmit = async e => {
 };
 
 /* ---------- Códigos QR ---------- */
+/* Zoom: muestra el QR del alumno a pantalla casi completa (se vuelve a dibujar grande para que quede nítido). */
+async function ampliar(a) {
+  const visor = $('#visor-qr');
+  $('#visor-qr-nombre').textContent = a.nombre;
+  $('#visor-qr-datos').textContent = a.matricula + (a.generacion ? ' · ' + a.generacion : '');
+  $('#visor-qr-img').textContent = 'Generando…';
+  if (!visor.open) visor.showModal();
+  try { await QR.dibujar($('#visor-qr-img'), a.matricula, 520); }
+  catch (err) { $('#visor-qr-img').textContent = err.message; }
+}
+$('#visor-qr-cerrar').onclick = () => $('#visor-qr').close();
+$('#visor-qr').addEventListener('click', e => { if (e.target.id === 'visor-qr') e.target.close(); }); // clic fuera = cerrar
+
 async function renderQR() {
   const cont = $('#lista-qr');
   cont.innerHTML = '';
@@ -151,7 +165,9 @@ async function renderQR() {
     const m = document.createElement('span'); m.textContent = a.matricula + ' · ' + a.generacion;
     const b = document.createElement('button'); b.textContent = 'Descargar PNG'; b.className = 'secondary';
     b.onclick = () => QR.descargar(qr, a.matricula);
-    card.append(qr, n, m, b); cont.appendChild(card);
+    const z = document.createElement('button'); z.textContent = 'Ampliar'; z.onclick = () => ampliar(a);
+    qr.title = 'Toca para ampliar'; qr.onclick = () => ampliar(a);
+    card.append(qr, n, m, z, b); cont.appendChild(card);
     try { await QR.dibujar(qr, a.matricula); }
     catch (err) { qr.textContent = err.message; }
   }

@@ -69,10 +69,18 @@ tbody tr:hover { background: #f8faff; }
 .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; }
 .card { border: 1px solid var(--borde); border-radius: 10px; padding: 14px 12px; text-align: center; }
 .card .qr { display: flex; justify-content: center; margin-bottom: 8px; }
-.card .qr img, .card .qr canvas { max-width: 100%; height: auto; }
+.card .qr canvas { width: 100%; max-width: 260px; height: auto; border-radius: 8px; border: 1px solid var(--borde); cursor: zoom-in; }
+.card .qr canvas:hover { box-shadow: 0 2px 10px #0003; }
+dialog#visor-qr { border: 0; border-radius: 16px; padding: 18px; width: min(94vw, 640px); text-align: center; box-shadow: 0 10px 40px #0008; }
+dialog#visor-qr::backdrop { background: #0f172acc; }
+#visor-qr-img canvas { width: min(86vw, 70vh, 560px); height: auto; image-rendering: pixelated; border: 1px solid var(--borde); border-radius: 8px; }
+#visor-qr strong { display: block; margin-top: 10px; font-size: 1.15rem; }
+#visor-qr span { color: var(--suave); }
+#visor-qr .hint { margin: 8px 0 12px; }
 .card strong, .card span { display: block; }
 .card span { color: var(--suave); font-size: .9rem; }
 .card button { margin-top: 8px; }
+.card button + button { margin-left: 6px; }
 
 .visor { position: relative; width: 100%; max-width: 420px; margin: 8px 0 14px; border-radius: 12px; overflow: hidden; background: #0f172a; min-height: 120px; }
 #lector { width: 100%; }
@@ -102,7 +110,7 @@ tbody tr:hover { background: #f8faff; }
 }
 
 @media print {
-  header, .toolbar, #toast, .card button, #btn-imprimir, .hint, .boton { display: none !important; }
+  dialog, header, .toolbar, #toast, .card button, #btn-imprimir, .hint, .boton { display: none !important; }
   body { background: #fff; }
   .view { display: none !important; }
   #view-qr { display: block !important; box-shadow: none; padding: 0; }
