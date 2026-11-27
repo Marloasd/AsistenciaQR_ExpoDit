@@ -177,13 +177,16 @@ async function refrescarClase() {
   $('#btn-cerrar-clase').disabled = !cerrada && !m.inscritos;
   $('#btn-cerrar-clase').textContent = cerrada ? 'Reabrir clase' : 'Cerrar clase';
   $('#btn-cerrar-clase').className = cerrada ? 'secondary' : 'danger';
+  $('#btn-siguiente-clase').hidden = !cerrada;
+  const numeroClase = (m.claseHoy && m.claseHoy.numero) || 1;
+  const textoClase = (numeroClase > 1 ? 'Clase ' + numeroClase + ' de hoy ' : 'Clase ') + (cerrada ? 'cerrada' : 'abierta');
   const estadoDe = a => a.dias[r.hoy] || null;
   const cuenta = e => r.alumnos.filter(a => estadoDe(a) === e).length;
   const pendientes = r.alumnos.filter(a => !estadoDe(a)).length;
   $('#clase-resumen').replaceChildren(
     etiqueta(cuenta('presente') + ' presentes', 'e-ok'), etiqueta(cuenta('retardo') + ' retardos', 'e-riesgo'),
     etiqueta(cuenta('falta') + ' faltas', cuenta('falta') ? 'e-sin_derecho' : 'e-neutro'), etiqueta(cuenta('justificada') + ' justificadas', 'e-neutro'),
-    etiqueta(pendientes + ' sin registro', pendientes ? 'e-limite' : 'e-neutro'), etiqueta(cerrada ? 'Clase cerrada' : 'Clase abierta', cerrada ? 'e-neutro' : 'e-ok'));
+    etiqueta(pendientes + ' sin registro', pendientes ? 'e-limite' : 'e-neutro'), etiqueta(textoClase, cerrada ? 'e-neutro' : 'e-ok'));
   $('#vacio-clase').hidden = r.alumnos.length > 0;
   r.alumnos.forEach(a => {
     const est = estadoDe(a);
@@ -211,6 +214,14 @@ $('#btn-cerrar-clase').onclick = async () => {
   const r = await DB.post('materias/' + encodeURIComponent(materiaSel) + '/clases/hoy/cerrar');
   toast(r.ok ? r.msg + (r.avisos ? ' · ' + r.avisos + ' aviso(s) en cola' : '') : r.msg, r.ok);
   await detenerCamara();
+  refrescarClase();
+};
+
+$('#btn-siguiente-clase').onclick = async () => {
+  if (!materiaSel) return;
+  if (!confirm('Se empieza una clase nueva, sin registros. Lo registrado en la clase anterior (asistencias y faltas) se conserva. ¿Empezar la siguiente clase?')) return;
+  const r = await DB.post('materias/' + encodeURIComponent(materiaSel) + '/clases/siguiente');
+  toast(r.msg, r.ok);
   refrescarClase();
 };
 

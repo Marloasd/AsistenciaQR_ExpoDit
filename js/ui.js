@@ -43,7 +43,7 @@ function barraFaltas(r) {
     el('div', { class: 'barra-fondo', role: 'img', 'aria-label': pct + ' % del límite de faltas' }, el('div', { class: 'barra-relleno b-' + r.estado, style: 'width:' + pct + '%' })));
 }
 
-const fechaCorta = f => f.slice(8, 10) + '/' + f.slice(5, 7);
+const fechaCorta = f => f.slice(8, 10) + '/' + f.slice(5, 7) + (f.includes('#') ? ' (clase ' + f.split('#')[1] + ')' : '');
 const fechaHora = iso => iso ? new Date(iso).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' }) : '';
 
 function descargarTexto(nombre, contenido, tipo = 'text/csv;charset=utf-8') {

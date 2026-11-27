@@ -284,6 +284,47 @@ test('reabrir la clase: quita las faltas del cierre, deja registrar a quien lleg
   assert.equal(rep.materia.claseHoy.estado, 'cerrada');
 });
 
+test('empezar la siguiente clase del día conserva lo registrado en la anterior', async () => {
+  const hoy = hoyMexico();
+  assert.equal((await api('/api/materias/MAT-I/clases/siguiente', 'POST', {}, otro)).estado, 403);
+  const sig = await api('/api/materias/MAT-I/clases/siguiente', 'POST', {}, maestro);
+  assert.equal(sig.estado, 201);
+  assert.equal(sig.cuerpo.fecha, hoy + '#2');
+  assert.equal((await api('/api/materias/MAT-I/clases/siguiente', 'POST', {}, maestro)).estado, 409, 'hay que cerrar la clase en curso');
+
+  assert.equal((await api('/api/materias/MAT-I/asistencia', 'POST', { texto: 'A1001' }, maestro)).estado, 201, 'la clase nueva empieza sin registros');
+  let rep = (await api('/api/materias/MAT-I/reporte', 'GET', undefined, maestro)).cuerpo;
+  assert.equal(rep.hoy, hoy + '#2');
+  assert.equal(rep.materia.claseHoy.numero, 2);
+  assert.equal(rep.alumnos.find(a => a.matricula === 'B2002').dias[hoy + '#2'], undefined, 'Beto aún sin registro en la clase 2');
+  assert.equal(rep.alumnos.find(a => a.matricula === 'B2002').dias[hoy], 'presente', 'lo de la clase 1 sigue ahí');
+
+  const cierre = await api('/api/materias/MAT-I/clases/hoy/cerrar', 'POST', {}, maestro);
+  assert.equal(cierre.cuerpo.faltas, 1);
+  rep = (await api('/api/materias/MAT-I/reporte', 'GET', undefined, maestro)).cuerpo;
+  const beto = rep.alumnos.find(a => a.matricula === 'B2002');
+  assert.equal(beto.dias[hoy + '#2'], 'falta');
+  assert.equal(beto.dias[hoy], 'presente', 'cerrar la clase 2 no toca la clase 1');
+  assert.deepEqual(rep.fechas, [hoy, hoy + '#2']);
+
+  // un cambio manual sin fecha se aplica a la clase en curso (la 2), no a la primera
+  await api('/api/materias/MAT-I/asistencia', 'PATCH', { matricula: 'B2002', estado: 'justificada' }, maestro);
+  rep = (await api('/api/materias/MAT-I/reporte', 'GET', undefined, maestro)).cuerpo;
+  assert.equal(rep.alumnos.find(a => a.matricula === 'B2002').dias[hoy + '#2'], 'justificada');
+  assert.equal(rep.alumnos.find(a => a.matricula === 'B2002').dias[hoy], 'presente');
+
+  // el aviso de la falta de la clase 2 menciona el día, sin el «#2»
+  const aviso = (await api('/api/avisos', 'GET', undefined, maestro)).cuerpo.datos.find(a => a.materiaId === 'MAT-I' && a.id.endsWith('#2'));
+  if (aviso) assert.doesNotMatch(aviso.texto, /#/);
+
+  // reabrir actúa sobre la clase 2
+  const re = await api('/api/materias/MAT-I/clases/hoy/reabrir', 'POST', {}, maestro);
+  assert.equal(re.estado, 200);
+  rep = (await api('/api/materias/MAT-I/reporte', 'GET', undefined, maestro)).cuerpo;
+  assert.equal(rep.materia.claseHoy.estado, 'abierta');
+  assert.equal(rep.alumnos.find(a => a.matricula === 'B2002').dias[hoy], 'presente');
+});
+
 test('eliminar una materia borra sus clases y asistencias', async () => {
   assert.equal((await api('/api/materias/RED-A', 'DELETE', undefined, maestro)).estado, 200);
   assert.equal((await api('/api/materias/RED-A/clases', 'GET', undefined, maestro)).estado, 404);

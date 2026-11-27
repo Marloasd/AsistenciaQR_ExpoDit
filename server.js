@@ -64,7 +64,13 @@ async function cuerpo(req) {
 const texto = v => typeof v === 'string' ? v.trim() : '';
 const normalizar = v => texto(v).toUpperCase();
 const matriculaValida = /^[A-Z0-9]{4,15}$/;
-const fechaValida = /^\d{4}-\d{2}-\d{2}$/;
+/* Una clase se identifica por «AAAA-MM-DD» (la primera del día) o «AAAA-MM-DD#2», «#3»… (las siguientes del mismo día). */
+const fechaValida = /^\d{4}-\d{2}-\d{2}(#\d{1,3})?$/;
+const diaDe = clave => String(clave).split('#')[0];
+const numeroDe = clave => parseInt(String(clave).split('#')[1] || '1', 10);
+const cmpClave = (a, b) => diaDe(a).localeCompare(diaDe(b)) || numeroDe(a) - numeroDe(b);
+/* La clase en curso (o la más reciente) de hoy; null si hoy aún no se abre ninguna. */
+const ultimaDelDia = (lista, dia) => lista.filter(c => diaDe(c.fecha) === dia).sort((a, b) => cmpClave(a.fecha, b.fecha)).pop() || null;
 const horaValida = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 async function insertarSiNoExiste(coleccion, doc) {
@@ -131,7 +137,7 @@ function fichaMateria(materia, listaClases, listaAsist, mapaAlumnos) {
   const registros = porMatricula(listaAsist);
   const resumenes = materia.inscritos.map(m => ({ matricula: m, nombre: (mapaAlumnos.get(m) || {}).nombre || m, resumen: R.resumen(materia, registros.get(m) || []) }));
   const hoy = ahora().fecha;
-  const claseHoy = listaClases.find(c => c.fecha === hoy);
+  const claseHoy = ultimaDelDia(listaClases, hoy);
   return {
     id: materia._id, clave: materia.clave, nombre: materia.nombre, grupo: materia.grupo, maestro: materia.maestro,
     horaInicio: materia.horaInicio, clasesPlaneadas: materia.clasesPlaneadas, porcentajeFaltas: materia.porcentajeFaltas,
@@ -140,7 +146,7 @@ function fichaMateria(materia, listaClases, listaAsist, mapaAlumnos) {
     impartidas: listaClases.filter(c => c.estado === 'cerrada').length,
     enRiesgo: resumenes.filter(r => r.resumen.estado === 'riesgo' || r.resumen.estado === 'limite').length,
     sinDerecho: resumenes.filter(r => r.resumen.estado === 'sin_derecho').length,
-    claseHoy: claseHoy ? { estado: claseHoy.estado, presentes: listaAsist.filter(a => a.fecha === hoy && a.estado !== 'falta').length } : null
+    claseHoy: claseHoy ? { estado: claseHoy.estado, numero: numeroDe(claseHoy.fecha), presentes: listaAsist.filter(a => a.fecha === claseHoy.fecha && a.estado !== 'falta').length } : null
   };
 }
 
@@ -163,7 +169,7 @@ async function generarAvisos(materia, fecha, matriculas) {
     const r = R.resumen(materia, todas.get(m) || []);
     const base = { materiaId: materia._id, matricula: m };
     const tutor = (alumno.tutor || {}).telefono;
-    if (await crearAviso({ ...base, id: ['falta', materia._id, m, fecha].join('|'), tipo: 'falta', destinatario: 'tutor', telefono: tutor, texto: R.textoAvisoTutor(alumno, materia, fecha, r) })) creados++;
+    if (await crearAviso({ ...base, id: ['falta', materia._id, m, fecha].join('|'), tipo: 'falta', destinatario: 'tutor', telefono: tutor, texto: R.textoAvisoTutor(alumno, materia, diaDe(fecha), r) })) creados++;
     if (r.crudo <= 3 && r.equivalentes > 0 &&
         await crearAviso({ ...base, id: ['restantes', materia._id, m, r.crudo].join('|'), tipo: 'restantes', destinatario: 'alumno', telefono: alumno.telefono, texto: R.textoAvisoAlumno(alumno, materia, r) })) creados++;
   }
@@ -352,7 +358,7 @@ ruta('DELETE', '/api/materias/:id/inscritos/:matricula', STAFF, async ctx => {
 ruta('GET', '/api/materias/:id/clases', STAFF, async ctx => {
   const materia = await materiaPropia(ctx);
   const [lista, regs] = await Promise.all([clases.find({ materiaId: materia._id }).toArray(), asistencias.find({ materiaId: materia._id }).toArray()]);
-  const datos = lista.sort((a, b) => b.fecha.localeCompare(a.fecha)).map(c => {
+  const datos = lista.sort((a, b) => cmpClave(b.fecha, a.fecha)).map(c => {
     const delDia = regs.filter(r => r.fecha === c.fecha);
     const n = e => delDia.filter(r => r.estado === e).length;
     return { fecha: c.fecha, estado: c.estado, presentes: n('presente'), retardos: n('retardo'), faltas: n('falta'), justificadas: n('justificada') };
@@ -366,11 +372,33 @@ async function asegurarClase(materia, fecha, hora) {
   return clases.findOne({ _id: id });
 }
 
+/* La clase en curso de hoy (la última del día); si hoy no hay ninguna, abre la primera. */
+async function asegurarClaseActual(materia, hora) {
+  const { fecha } = ahora();
+  const existente = ultimaDelDia(await clases.find({ materiaId: materia._id }).toArray(), fecha);
+  return existente || asegurarClase(materia, fecha, hora);
+}
+
 ruta('POST', '/api/materias/:id/clases', STAFF, async ctx => {
   const materia = await materiaPropia(ctx);
+  const clase = await asegurarClaseActual(materia, ahora().hora);
+  return { estado: 200, datos: { msg: clase.estado === 'cerrada' ? 'La clase de hoy ya estaba cerrada.' : 'Clase de hoy abierta.', fecha: clase.fecha, claseEstado: clase.estado } };
+});
+
+/* Empezar la siguiente clase del día: las asistencias y faltas de la anterior se conservan y la nueva empieza sin registros. */
+ruta('POST', '/api/materias/:id/clases/siguiente', STAFF, async ctx => {
+  const materia = await materiaPropia(ctx);
   const { fecha, hora } = ahora();
-  const clase = await asegurarClase(materia, fecha, hora);
-  return { estado: 200, datos: { msg: clase.estado === 'cerrada' ? 'La clase de hoy ya estaba cerrada.' : 'Clase de hoy abierta.', fecha, claseEstado: clase.estado } };
+  const actual = ultimaDelDia(await clases.find({ materiaId: materia._id }).toArray(), fecha);
+  if (!actual) {
+    const primera = await asegurarClase(materia, fecha, hora);
+    return { estado: 201, datos: { msg: 'Clase de hoy abierta.', fecha: primera.fecha, numero: 1 } };
+  }
+  if (actual.estado !== 'cerrada') throw fallo(409, 'Cierra la clase actual antes de empezar la siguiente.');
+  const numero = numeroDe(actual.fecha) + 1;
+  const clave = fecha + '#' + numero;
+  await insertarSiNoExiste(clases, { _id: materia._id + '|' + clave, materiaId: materia._id, fecha: clave, dia: fecha, numero, estado: 'abierta', abierta: hora });
+  return { estado: 201, datos: { msg: 'Clase ' + numero + ' de hoy abierta. Lo registrado en la anterior se conserva.', fecha: clave, numero } };
 });
 
 ruta('POST', '/api/materias/:id/asistencia', STAFF, async ctx => {
@@ -378,9 +406,10 @@ ruta('POST', '/api/materias/:id/asistencia', STAFF, async ctx => {
   const { texto: lectura } = await ctx.body();
   const alumno = await resolverAlumno(lectura);
   if (!materia.inscritos.includes(alumno._id)) throw fallo(403, alumno.nombre + ' no está inscrito en ' + materia.nombre + '.');
-  const { fecha, hora, iso } = ahora();
-  const clase = await asegurarClase(materia, fecha, hora);
-  if (clase.estado === 'cerrada') throw fallo(409, 'La clase de hoy ya está cerrada. Pulsa «Reabrir clase» para registrar a más alumnos.');
+  const { hora, iso } = ahora();
+  const clase = await asegurarClaseActual(materia, hora);
+  const fecha = clase.fecha;
+  if (clase.estado === 'cerrada') throw fallo(409, 'La clase de hoy ya está cerrada. Pulsa «Reabrir clase» o «Empezar siguiente clase» para registrar a más alumnos.');
   const estado = R.estadoPorHora(materia.horaInicio, hora);
   const guardado = await insertarSiNoExiste(asistencias, { _id: [materia._id, fecha, alumno._id].join('|'), materiaId: materia._id, matricula: alumno._id, fecha, hora, estado, origen: 'qr', registrado: iso });
   if (!guardado) throw fallo(409, alumno.nombre + ' ya registró su asistencia hoy.');
@@ -389,10 +418,11 @@ ruta('POST', '/api/materias/:id/asistencia', STAFF, async ctx => {
 
 ruta('POST', '/api/materias/:id/clases/hoy/cerrar', STAFF, async ctx => {
   const materia = await materiaPropia(ctx);
-  const { fecha, hora } = ahora();
-  const clase = await clases.findOne({ _id: materia._id + '|' + fecha });
+  const { hora } = ahora();
+  const clase = ultimaDelDia(await clases.find({ materiaId: materia._id }).toArray(), ahora().fecha);
   if (!clase) throw fallo(404, 'Hoy no se ha abierto ninguna clase de esta materia.');
   if (clase.estado === 'cerrada') throw fallo(409, 'La clase de hoy ya estaba cerrada.');
+  const fecha = clase.fecha;
   const hechos = new Set((await asistencias.find({ materiaId: materia._id, fecha }).toArray()).map(r => r.matricula));
   const faltantes = materia.inscritos.filter(m => !hechos.has(m));
   for (const m of faltantes) await insertarSiNoExiste(asistencias, { _id: [materia._id, fecha, m].join('|'), materiaId: materia._id, matricula: m, fecha, hora, estado: 'falta', origen: 'cierre' });
@@ -405,10 +435,11 @@ ruta('POST', '/api/materias/:id/clases/hoy/cerrar', STAFF, async ctx => {
    retira los avisos que aún no salieron para poder generarlos de nuevo al volver a cerrar, y deja registrar a quien falte. */
 ruta('POST', '/api/materias/:id/clases/hoy/reabrir', STAFF, async ctx => {
   const materia = await materiaPropia(ctx);
-  const { fecha, hora } = ahora();
-  const clase = await clases.findOne({ _id: materia._id + '|' + fecha });
+  const { hora } = ahora();
+  const clase = ultimaDelDia(await clases.find({ materiaId: materia._id }).toArray(), ahora().fecha);
   if (!clase) throw fallo(404, 'Hoy no se ha abierto ninguna clase de esta materia.');
   if (clase.estado !== 'cerrada') throw fallo(409, 'La clase de hoy ya está abierta.');
+  const fecha = clase.fecha;
   const automaticas = (await asistencias.find({ materiaId: materia._id, fecha, origen: 'cierre' }).toArray()).map(r => r.matricula);
   await asistencias.deleteMany({ materiaId: materia._id, fecha, origen: 'cierre' });
   const idsFalta = automaticas.map(m => ['falta', materia._id, m, fecha].join('|'));
@@ -428,12 +459,14 @@ ruta('POST', '/api/materias/:id/clases/hoy/reabrir', STAFF, async ctx => {
 ruta('PATCH', '/api/materias/:id/asistencia', STAFF, async ctx => {
   const materia = await materiaPropia(ctx);
   const d = await ctx.body();
-  const matricula = normalizar(d.matricula), fecha = texto(d.fecha) || ahora().fecha, estado = texto(d.estado);
+  const matricula = normalizar(d.matricula), pedida = texto(d.fecha), estado = texto(d.estado);
   if (!materia.inscritos.includes(matricula)) throw fallo(404, 'Ese alumno no está inscrito en la materia.');
-  if (!fechaValida.test(fecha)) throw fallo(400, 'Fecha inválida.');
+  if (pedida && !fechaValida.test(pedida)) throw fallo(400, 'Fecha inválida.');
   if (!['presente', 'retardo', 'falta', 'justificada'].includes(estado)) throw fallo(400, 'Estado inválido.');
   const { hora, iso } = ahora();
-  const clase = await asegurarClase(materia, fecha, hora);
+  // Sin fecha, el cambio es para la clase en curso de hoy (la última del día).
+  const clase = pedida ? await asegurarClase(materia, pedida, hora) : await asegurarClaseActual(materia, hora);
+  const fecha = clase.fecha;
   await asistencias.updateOne({ _id: [materia._id, fecha, matricula].join('|') },
     { $set: { materiaId: materia._id, matricula, fecha, hora, estado, origen: 'manual', registrado: iso } }, { upsert: true });
   if (estado === 'falta' && clase.estado === 'cerrada') await generarAvisos(materia, fecha, [matricula]);
@@ -444,7 +477,7 @@ ruta('GET', '/api/materias/:id/reporte', STAFF, async ctx => {
   const materia = await materiaPropia(ctx);
   const [listaClases, regs, todosAlumnos] = await Promise.all([clases.find({ materiaId: materia._id }).toArray(), asistencias.find({ materiaId: materia._id }).toArray(), alumnos.find({ _id: { $in: materia.inscritos } }).toArray()]);
   const mapaAlumnos = new Map(todosAlumnos.map(a => [a._id, a]));
-  const fechas = listaClases.map(c => c.fecha).sort();
+  const fechas = listaClases.map(c => c.fecha).sort(cmpClave);
   const registros = porMatricula(regs);
   const filas = materia.inscritos.map(m => {
     const propios = registros.get(m) || [];
@@ -454,7 +487,8 @@ ruta('GET', '/api/materias/:id/reporte', STAFF, async ctx => {
     };
   }).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
   const ficha = fichaMateria(materia, listaClases, regs, mapaAlumnos);
-  return { estado: 200, datos: { materia: ficha, fechas, alumnos: filas, hoy: ahora().fecha } };
+  const claseActual = ultimaDelDia(listaClases, ahora().fecha);
+  return { estado: 200, datos: { materia: ficha, fechas, alumnos: filas, hoy: claseActual ? claseActual.fecha : ahora().fecha } };
 });
 
 /* --- Portal del alumno --- */
@@ -465,7 +499,7 @@ ruta('GET', '/api/yo', ['alumno'], async ({ sesion }) => {
   const lista = await materias.find({ inscritos: alumno._id }).toArray();
   const regs = await asistencias.find({ matricula: alumno._id }).toArray();
   const datos = lista.map(m => {
-    const propios = regs.filter(r => r.materiaId === m._id).sort((a, b) => b.fecha.localeCompare(a.fecha));
+    const propios = regs.filter(r => r.materiaId === m._id).sort((a, b) => cmpClave(b.fecha, a.fecha));
     return { id: m._id, nombre: m.nombre, grupo: m.grupo, maestro: m.maestro, horaInicio: m.horaInicio, clasesPlaneadas: m.clasesPlaneadas, resumen: R.resumen(m, propios), recientes: propios.slice(0, 8).map(r => ({ fecha: r.fecha, estado: r.estado })) };
   });
   return { estado: 200, datos: { alumno: { matricula: alumno._id, nombre: alumno.nombre, generacion: alumno.generacion, codigo: alumno.codigo }, materias: datos } };
