@@ -174,8 +174,9 @@ async function refrescarClase() {
   datosClase = r;
   const m = r.materia, cerrada = m.claseHoy && m.claseHoy.estado === 'cerrada';
   $('#clase-info').textContent = m.clave + ' · ' + m.inscritos + ' alumnos · máximo ' + m.permitidas + ' faltas' + (m.horaInicio ? ' · inicia ' + m.horaInicio : '');
-  $('#btn-cerrar-clase').disabled = cerrada || !m.inscritos;
-  $('#btn-cerrar-clase').textContent = cerrada ? 'Clase cerrada' : 'Cerrar clase';
+  $('#btn-cerrar-clase').disabled = !cerrada && !m.inscritos;
+  $('#btn-cerrar-clase').textContent = cerrada ? 'Reabrir clase' : 'Cerrar clase';
+  $('#btn-cerrar-clase').className = cerrada ? 'secondary' : 'danger';
   const estadoDe = a => a.dias[r.hoy] || null;
   const cuenta = e => r.alumnos.filter(a => estadoDe(a) === e).length;
   const pendientes = r.alumnos.filter(a => !estadoDe(a)).length;
@@ -197,6 +198,13 @@ async function refrescarClase() {
 
 $('#btn-cerrar-clase').onclick = async () => {
   if (!datosClase) return;
+  if (datosClase.materia.claseHoy && datosClase.materia.claseHoy.estado === 'cerrada') {
+    if (!confirm('Se quitarán las faltas que se pusieron automáticamente al cerrar y podrás registrar a quien falte. Los avisos de WhatsApp que ya se enviaron no se pueden retirar. ¿Reabrir la clase?')) return;
+    const re = await DB.post('materias/' + encodeURIComponent(materiaSel) + '/clases/hoy/reabrir');
+    toast(re.msg, re.ok);
+    refrescarClase();
+    return;
+  }
   const pendientes = datosClase.alumnos.filter(a => !a.dias[datosClase.hoy]).length;
   if (!confirm('Se marcará falta a ' + pendientes + ' alumno(s) sin registro y se enviarán los avisos por WhatsApp. ¿Cerrar la clase?')) return;
   await DB.post('materias/' + encodeURIComponent(materiaSel) + '/clases');

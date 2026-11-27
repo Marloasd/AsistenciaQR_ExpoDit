@@ -380,7 +380,7 @@ ruta('POST', '/api/materias/:id/asistencia', STAFF, async ctx => {
   if (!materia.inscritos.includes(alumno._id)) throw fallo(403, alumno.nombre + ' no está inscrito en ' + materia.nombre + '.');
   const { fecha, hora, iso } = ahora();
   const clase = await asegurarClase(materia, fecha, hora);
-  if (clase.estado === 'cerrada') throw fallo(409, 'La clase de hoy ya está cerrada.');
+  if (clase.estado === 'cerrada') throw fallo(409, 'La clase de hoy ya está cerrada. Pulsa «Reabrir clase» para registrar a más alumnos.');
   const estado = R.estadoPorHora(materia.horaInicio, hora);
   const guardado = await insertarSiNoExiste(asistencias, { _id: [materia._id, fecha, alumno._id].join('|'), materiaId: materia._id, matricula: alumno._id, fecha, hora, estado, origen: 'qr', registrado: iso });
   if (!guardado) throw fallo(409, alumno.nombre + ' ya registró su asistencia hoy.');
@@ -399,6 +399,30 @@ ruta('POST', '/api/materias/:id/clases/hoy/cerrar', STAFF, async ctx => {
   await clases.updateOne({ _id: clase._id }, { $set: { estado: 'cerrada', cierre: hora } });
   const creados = await generarAvisos(materia, fecha, faltantes);
   return { estado: 200, datos: { msg: 'Clase cerrada: ' + hechos.size + ' presente(s), ' + faltantes.length + ' falta(s).', presentes: hechos.size, faltas: faltantes.length, avisos: creados } };
+});
+
+/* Reabrir la clase de hoy: quita solo las faltas que puso el cierre automático (no las manuales ni las justificadas),
+   retira los avisos que aún no salieron para poder generarlos de nuevo al volver a cerrar, y deja registrar a quien falte. */
+ruta('POST', '/api/materias/:id/clases/hoy/reabrir', STAFF, async ctx => {
+  const materia = await materiaPropia(ctx);
+  const { fecha, hora } = ahora();
+  const clase = await clases.findOne({ _id: materia._id + '|' + fecha });
+  if (!clase) throw fallo(404, 'Hoy no se ha abierto ninguna clase de esta materia.');
+  if (clase.estado !== 'cerrada') throw fallo(409, 'La clase de hoy ya está abierta.');
+  const automaticas = (await asistencias.find({ materiaId: materia._id, fecha, origen: 'cierre' }).toArray()).map(r => r.matricula);
+  await asistencias.deleteMany({ materiaId: materia._id, fecha, origen: 'cierre' });
+  const idsFalta = automaticas.map(m => ['falta', materia._id, m, fecha].join('|'));
+  const previos = idsFalta.length ? await avisos.find({ _id: { $in: idsFalta } }).toArray() : [];
+  const yaEnviados = previos.filter(a => a.estado === 'enviado').length;
+  const retirar = previos.filter(a => a.estado !== 'enviado').map(a => a._id);
+  if (retirar.length) await avisos.deleteMany({ _id: { $in: retirar } });
+  if (automaticas.length) await avisos.deleteMany({ materiaId: materia._id, tipo: 'restantes', estado: { $in: ['pendiente', 'omitido', 'error'] }, matricula: { $in: automaticas } });
+  await clases.updateOne({ _id: clase._id }, { $set: { estado: 'abierta', cierre: null, reabierta: hora } });
+  return { estado: 200, datos: {
+    msg: 'Clase reabierta: se quitaron ' + automaticas.length + ' falta(s) del cierre. Registra a quien falte y vuelve a cerrar.' +
+      (yaEnviados ? ' ' + yaEnviados + ' aviso(s) de WhatsApp ya se habían enviado y no se pueden retirar.' : ''),
+    faltasQuitadas: automaticas.length, avisosYaEnviados: yaEnviados
+  } };
 });
 
 ruta('PATCH', '/api/materias/:id/asistencia', STAFF, async ctx => {

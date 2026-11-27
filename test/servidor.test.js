@@ -258,6 +258,32 @@ test('cerrar sesión borra la cookie', async () => {
   assert.match(r.cabeceras.get('set-cookie'), /Max-Age=0/);
 });
 
+test('reabrir la clase: quita las faltas del cierre, deja registrar a quien llegó y exige ser el dueño', async () => {
+  assert.equal((await api('/api/materias', 'POST', { clave: 'MAT-I', nombre: 'Matemáticas I', grupo: '1A', clasesPlaneadas: 10 }, maestro)).estado, 201);
+  await api('/api/materias/MAT-I/inscribir', 'POST', { matriculas: ['A1001', 'B2002'] }, maestro);
+  assert.equal((await api('/api/materias/MAT-I/clases/hoy/reabrir', 'POST', {}, maestro)).estado, 404, 'aún no hay clase de hoy');
+  assert.equal((await api('/api/materias/MAT-I/asistencia', 'POST', { texto: 'A1001' }, maestro)).estado, 201);
+  assert.equal((await api('/api/materias/MAT-I/clases/hoy/reabrir', 'POST', {}, maestro)).estado, 409, 'una clase abierta no se reabre');
+  assert.equal((await api('/api/materias/MAT-I/clases/hoy/cerrar', 'POST', {}, maestro)).cuerpo.faltas, 1);
+  const cerrada = await api('/api/materias/MAT-I/asistencia', 'POST', { texto: 'B2002' }, maestro);
+  assert.equal(cerrada.estado, 409);
+  assert.match(cerrada.cuerpo.msg, /Reabrir clase/);
+
+  assert.equal((await api('/api/materias/MAT-I/clases/hoy/reabrir', 'POST', {}, otro)).estado, 403, 'solo el maestro de la materia');
+  const re = await api('/api/materias/MAT-I/clases/hoy/reabrir', 'POST', {}, maestro);
+  assert.equal(re.estado, 200);
+  assert.equal(re.cuerpo.faltasQuitadas, 1);
+  const avisosBeto = (await api('/api/avisos', 'GET', undefined, maestro)).cuerpo.datos.filter(a => a.materiaId === 'MAT-I' && a.matricula === 'B2002');
+  assert.equal(avisosBeto.length, 0, 'los avisos que no salieron se retiran');
+
+  assert.equal((await api('/api/materias/MAT-I/asistencia', 'POST', { texto: 'B2002' }, maestro)).estado, 201, 'ahora sí se puede registrar');
+  const cierre2 = await api('/api/materias/MAT-I/clases/hoy/cerrar', 'POST', {}, maestro);
+  assert.equal(cierre2.cuerpo.faltas, 0);
+  const rep = (await api('/api/materias/MAT-I/reporte', 'GET', undefined, maestro)).cuerpo;
+  assert.equal(rep.alumnos.find(a => a.matricula === 'B2002').dias[rep.hoy], 'presente');
+  assert.equal(rep.materia.claseHoy.estado, 'cerrada');
+});
+
 test('eliminar una materia borra sus clases y asistencias', async () => {
   assert.equal((await api('/api/materias/RED-A', 'DELETE', undefined, maestro)).estado, 200);
   assert.equal((await api('/api/materias/RED-A/clases', 'GET', undefined, maestro)).estado, 404);
